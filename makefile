@@ -5,7 +5,13 @@ STUPIDSECRET=thisisadumbsecretyo
 all:
 	test
 
-test:
+mod:
+	go mod download
+
+test: mod
+	SENTRY_ENDPOINT=http://sentryserver:9000/api/0/ go test
+
+oldtest:
 	go fmt *.go
 	SENTRY_ENDPOINT=http://localhost:8080/api/0/ go test $$(glide novendor) -v
 

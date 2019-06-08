@@ -1,0 +1,112 @@
+version: '3.7'
+networks:
+  sentry:
+    driver: bridge
+services:
+  redis:
+    image: redis
+    networks:
+     - sentry
+    ports:
+      - 6379:6379
+  postgres:
+     image: postgres
+     networks:
+      - sentry
+     ports:
+      - "5432:5432"
+     environment:
+      - POSTGRES_USER=sentry
+      - POSTGRES_PASSWORD=secret
+  sentry-upgrade:
+    image: sentry:latest
+    networks:
+     - sentry
+    environment:
+     - SENTRY_SECRET_KEY=1234567890
+     - SENTRY_REDIS_HOST=redis
+     - SENTRY_POSTGRES_HOST=postgres
+     - SENTRY_DB_USER=sentry
+     - SENTRY_DB_PASSWORD=secret
+    links:
+     - redis
+     - postgres
+    command: upgrade
+    depends_on:
+     - redis
+     - postgres
+  sentryserver:
+    image: sentry:latest
+    networks:
+     - sentry
+    links:
+     - redis
+     - postgres
+    ports:
+     - "9000:9000"
+    environment:
+     - SENTRY_SECRET_KEY=1234567890
+     - SENTRY_REDIS_HOST=redis
+     - SENTRY_POSTGRES_HOST=postgres
+     - SENTRY_DB_USER=sentry
+     - SENTRY_DB_PASSWORD=secret
+    depends_on:
+     - redis
+     - postgres
+  sentry-cron:
+    image: sentry:latest
+    environment:
+     - SENTRY_SECRET_KEY=1234567890
+     - SENTRY_REDIS_HOST=redis
+     - SENTRY_POSTGRES_HOST=postgres
+     - SENTRY_DB_USER=sentry
+     - SENTRY_DB_PASSWORD=secret
+    networks:
+     - sentry
+    links:
+     - redis
+     - postgres
+    command: run cron
+    depends_on:
+     - redis
+     - postgres
+  sentry-worker:
+    image: sentry:latest
+    environment:
+     - SENTRY_SECRET_KEY=1234567890
+     - SENTRY_REDIS_HOST=redis
+     - SENTRY_POSTGRES_HOST=postgres
+     - SENTRY_DB_USER=sentry
+     - SENTRY_DB_PASSWORD=secret
+    networks:
+     - sentry
+    links:
+     - redis
+     - postgres
+    command: run worker
+    depends_on:
+     - redis
+     - postgres
+
+  test:
+     networks:
+      - sentry
+     links:
+      - redis
+      - postgres
+      - sentryserver
+     depends_on:
+      - redis
+      - postgres
+      - sentryserver
+      - sentry-cron
+      - sentry-worker
+     image: golang:1.12
+     volumes:
+      - .:/go/src/github.com/dherbst/go-sentry-api
+     working_dir: /go/src/github.com/dherbst/go-sentry-api
+     environment:
+      - SENTRY_SECRET_KEY=1234567890
+      - SENTRY_AUTH_TOKEN=1234567890
+      - GO111MODULE=on
+     command: make test
